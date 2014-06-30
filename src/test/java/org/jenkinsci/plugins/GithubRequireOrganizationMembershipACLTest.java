@@ -37,11 +37,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import junit.framework.TestCase;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.kohsuke.github.GHMyself;
+import org.kohsuke.github.GHOrganization;
+import org.kohsuke.github.GHPersonSet;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHUser;
 import org.kohsuke.github.GitHub;
@@ -72,10 +76,32 @@ public class GithubRequireOrganizationMembershipACLTest extends TestCase {
         GitHub gh = PowerMockito.mock(GitHub.class);
         PowerMockito.mockStatic(GitHub.class);
         PowerMockito.when(GitHub.connectUsingOAuth("https://api.github.com", "accessToken")).thenReturn(gh);
-        GHUser me = PowerMockito.mock(GHMyself.class);
+        GHMyself me = PowerMockito.mock(GHMyself.class);
         PowerMockito.when(gh.getMyself()).thenReturn((GHMyself) me);
         PowerMockito.when(me.getLogin()).thenReturn(username);
+        Set<GHRepository> repositories = new HashSet();
+        GHPersonSet<GHOrganization> organizations = new GHPersonSet();
+        repositories.add(mockGHRepository(username, "a-repo"));
+        PowerMockito.when(me.getAllRepositories()).thenReturn(repositoryMapOf(repositories));
+        PowerMockito.when(me.getAllOrganizations()).thenReturn(organizations);
         return gh;
+    }
+
+    private Map<String, GHRepository> repositoryMapOf(Set<GHRepository> repositories) {
+        Map<String,GHRepository> repositoriesMap = new TreeMap<String, GHRepository>();
+        for (GHRepository r : repositories) {
+            repositoriesMap.put(r.getName(),r);
+        }
+        return Collections.unmodifiableMap(repositoriesMap);
+    }
+
+    private GHRepository mockGHRepository(String ownerName, String name) throws IOException {
+        GHRepository ghRepository = PowerMockito.mock(GHRepository.class);
+        GHUser ghUser = PowerMockito.mock(GHUser.class);
+        PowerMockito.when(ghUser.getLogin()).thenReturn(ownerName);
+        PowerMockito.when(ghRepository.getOwner()).thenReturn(ghUser);
+        PowerMockito.when(ghRepository.getName()).thenReturn(name);
+        return ghRepository;
     }
 
     private Project mockProject(String url) {
