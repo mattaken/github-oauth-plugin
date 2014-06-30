@@ -204,6 +204,8 @@ public class GithubAuthenticationToken extends AbstractAuthenticationToken {
         return names;
     }
 
+    // Should CACHE
+    // BUG: repository.isPrivate() always returns false :(
     public boolean isPublicRepository(final String repositoryName) {
         GHRepository repository = loadRepository(repositoryName);
         if (repository == null) {

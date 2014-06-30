@@ -239,9 +239,9 @@ public class GithubRequireOrganizationMembershipACL extends ACL {
             } else {
                 return false;
             }
-        } else if (checkReadPermission(permission) &&
-                authenticationToken.isPublicRepository(repositoryName)) {
-            return true;
+//        } else if (checkReadPermission(permission) &&
+//                authenticationToken.isPublicRepository(repositoryName)) {
+//            return true;
         } else {
             return authenticationToken.hasRepositoryPermission(repositoryName);
         }
