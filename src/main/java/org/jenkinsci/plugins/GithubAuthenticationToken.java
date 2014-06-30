@@ -42,10 +42,14 @@ import java.util.logging.Level;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import hudson.security.SecurityRealm;
+import java.util.Collection;
+import java.util.Iterator;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.providers.AbstractAuthenticationToken;
+import org.kohsuke.github.GHMyself;
 import org.kohsuke.github.GHOrganization;
+import org.kohsuke.github.GHPersonSet;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHTeam;
 import org.kohsuke.github.GHUser;
@@ -75,6 +79,9 @@ public class GithubAuthenticationToken extends AbstractAuthenticationToken {
             CacheBuilder.newBuilder().expireAfterWrite(1,TimeUnit.HOURS).build();
 
 	private static final Cache<String, Set<String>> repositoryCollaboratorsCache =
+            CacheBuilder.newBuilder().expireAfterWrite(1,TimeUnit.HOURS).build();
+
+	private static final Cache<String, Set<String>> repositoriesByUserCache =
             CacheBuilder.newBuilder().expireAfterWrite(1,TimeUnit.HOURS).build();
 
     private final List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
@@ -156,28 +163,45 @@ public class GithubAuthenticationToken extends AbstractAuthenticationToken {
     }
 
     public boolean hasRepositoryPermission(final String repositoryName) {
+        return myRepositories().contains(repositoryName);
+    }
 
+    public Set<String> myRepositories() {
         try {
-            Set<String> collaborators = repositoryCollaboratorsCache.get(repositoryName,
+            Set<String> myRepositories = repositoriesByUserCache.get(getName(),
                 new Callable<Set<String>>() {
                     @Override
                     public Set<String> call() throws Exception {
-                        GHRepository repository = loadRepository(repositoryName);
-                        if (repository == null) {
-                            return new HashSet<String>();
-                        } else {
-                            return repository.getCollaboratorNames();
+                        GHMyself me = gh.getMyself();
+                        Map<String, GHRepository> userRepositoryMap = me.getAllRepositories();
+                        Set<String> respositoryNames = mapToNames(userRepositoryMap.values());
+                        GHPersonSet<GHOrganization> organizations = me.getAllOrganizations();
+                        for (GHOrganization organization : organizations) {
+                            Map<String, GHRepository> repositoryMap = organization.getRepositories();
+                            respositoryNames.addAll(mapToNames(repositoryMap.values()));
                         }
+                        return respositoryNames;
                     }
                 }
             );
 
-            return collaborators.contains(getName());
+            return myRepositories;
         } catch (ExecutionException e) {
             LOGGER.log(Level.SEVERE, "an exception was thrown", e);
             throw new RuntimeException("authorization failed for user = "
                         + getName(), e);
         }
+    }
+
+    public Set<String> mapToNames(Collection<GHRepository> respositories) throws IOException {
+        Set<String> names = new HashSet<String>();
+        Iterator entries = respositories.iterator();
+        while (entries.hasNext()) {
+            GHRepository repository = (GHRepository) entries.next();
+            GHUser owner = repository.getOwner();
+            names.add(owner.getLogin() + "/" + repository.getName());
+        }
+        return names;
     }
 
     public boolean isPublicRepository(final String repositoryName) {
